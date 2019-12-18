@@ -1,5 +1,5 @@
-#!/usr/bin/python2.7
-# Copyright Yahoo Inc. 2016, see LICENSE.txt for full details
+#!/usr/bin/env python3
+# Copyright 2019 Oath, Inc., see LICENSE.txt for full details
 """
 Flurry's Crash service can symbolicate the crashes reported by Flurry's SDK.
 This script uploads the symbols required to properly symbolicate crashes from
@@ -30,11 +30,11 @@ have submitted your build and then manually upload them to Flurry.
 
 import sys
 
-if sys.version_info < (2, 7):
-    sys.exit("Python version >= 2.7.x required")
+if sys.version_info < (3, 0):
+    sys.exit("Python version >= 3.0.x required")
 
-import ConfigParser                                                 # noqa: E402
-import httplib                                                      # noqa: E402
+import configparser                                                 # noqa: E402
+import http.client                                                  # noqa: E402
 import json                                                         # noqa: E402
 import logging                                                      # noqa: E402
 import os                                                           # noqa: E402
@@ -42,12 +42,12 @@ import ssl                                                          # noqa: E402
 import shutil                                                       # noqa: E402
 import tarfile                                                      # noqa: E402
 import time                                                         # noqa: E402
-import urllib2                                                      # noqa: E402
-import urlparse                                                     # noqa: E402
 import zipfile                                                      # noqa: E402
+from urllib.parse import urljoin                                    # noqa: E402
+from urllib.request import urlopen, Request                         # noqa: E402
 from argparse import ArgumentParser, RawDescriptionHelpFormatter    # noqa: E402
 from tempfile import mkdtemp, NamedTemporaryFile                    # noqa: E402
-from urllib2 import Request                                         # noqa: E402
+from urllib.error import HTTPError, URLError                        # noqa: E402
 
 
 METADATA_BASE = "https://crash-metadata.flurry.com/pulse/v1/"
@@ -55,13 +55,7 @@ UPLOAD_BASE = "https://upload.flurry.com/upload/v1/"
 
 API_KEY = 'api-key'
 TOKEN_KEY = 'token'
-IS_PYTHON_2_7_9 = sys.version_info.micro >= 9
-
-if IS_PYTHON_2_7_9:
-    SSL_CONTEXT = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
-else:
-    SSL_CONTEXT = None
-
+SSL_CONTEXT = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s	%(message)s"
 logging.basicConfig(format=LOG_FORMAT, datefmt="%H:%M:%S")
@@ -147,7 +141,7 @@ def configure_arg_parser():
     )
 
     behavior = parser.add_argument_group('Script behavior')
-    log_levels = [n for n in logging._levelNames if isinstance(n, basestring)]
+    log_levels = list(logging._levelToName.values())
     behavior.add_argument(
         "--log", type=str, help="Set logging level", metavar="LEVEL",
         default=logging.INFO, choices=log_levels)
@@ -272,7 +266,9 @@ def create_upload(project, size, token):
             }
         }
     }
-    request = create_request(url, json_api_headers(token), json.dumps(upload))
+    request = create_request(url,
+                             json_api_headers(token),
+                             json.dumps(upload).encode())
     response = exec_request(request, "creating upload")
     upload = json.loads(response.read())
     log.debug("Created upload %s", upload)
@@ -375,7 +371,7 @@ def json_api_headers(token):
 def format_url(base, resource, *args, **kwargs):
     """Format and normalize urls"""
     url = resource.format(*args, **kwargs).lstrip('/')
-    return urlparse.urljoin(base, url)
+    return urljoin(base, url)
 
 
 def upload_url(project_id, upload_id):
@@ -409,17 +405,16 @@ def exec_request(request, task, timeout=10):
     request - the request to fire
     task - the name of the task being executed
 
-    return the urllib2 response
+    return the urllib response
     """
     kwargs = {
         "timeout": timeout
     }
-    if IS_PYTHON_2_7_9:
-        kwargs["context"] = SSL_CONTEXT
+    kwargs["context"] = SSL_CONTEXT
 
     try:
-        return urllib2.urlopen(request, **kwargs)
-    except urllib2.HTTPError as e:
+        return urlopen(request, **kwargs)
+    except HTTPError as e:
         body = e.read()
         if e.code == 401:
             body = "UNAUTHORIZED (Bad Token)"
@@ -431,14 +426,19 @@ def exec_request(request, task, timeout=10):
             url=e.url,
             code=e.code,
             body=body)
-    except httplib.HTTPException as e:
+    except http.client.HTTPException as e:
         die("error {task}. {err} {errtype}", task=task, err=e, errtype=type(e))
-    except urllib2.URLError:
+    except URLError:
         # Retry after first failure
         try:
-            return urllib2.urlopen(request, **kwargs)
-        except urllib2.URLError as e:
-            die("error {task}. {err} {errtype}", task=task, err=e, errtype=type(e))
+            return urlopen(request, **kwargs)
+        except URLError as e:
+            die(
+                "error {task}. {err} {errtype}",
+                task=task,
+                err=e,
+                errtype=type(e))
+
 
 def die(fmt, *args, **kwargs):
     """exit the script and print an error to the console"""
@@ -448,7 +448,7 @@ def die(fmt, *args, **kwargs):
 def get_flurry_config_key(config, key, default=None):
     try:
         return config.get("flurry", key)
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+    except (configparser.NoSectionError, configparser.NoOptionError):
         return default
 
 
@@ -459,7 +459,7 @@ def main():
 
     insecure = args.insecure
 
-    if IS_PYTHON_2_7_9 and insecure:
+    if insecure:
         SSL_CONTEXT.check_hostname = False
         SSL_CONTEXT.verify_mode = ssl.CERT_NONE
 
@@ -472,7 +472,7 @@ def main():
     archive = search_path.endswith(".zip")
 
     if args.config_file:
-        config = ConfigParser.RawConfigParser()
+        config = configparser.RawConfigParser()
         config.read(args.config_file)
         token = get_flurry_config_key(config, TOKEN_KEY, token)
         api_key = get_flurry_config_key(config, API_KEY, api_key)
@@ -488,8 +488,9 @@ def main():
 
     if not token or not api_key:
         die(
-            "{usage}\nYou must provide a token [-t TOKEN] ({token_present}) and an API key " +
-            "[-k API_KEY] ({api_key_present})\nor a config file [-c CONFIG] ({config_specified}) " +
+            "{usage}\nYou must provide a token [-t TOKEN] ({token_present}) " +
+            "and an API key[-k API_KEY] ({api_key_present})\n" +
+            "or a config file [-c CONFIG] ({config_specified}) " +
             "that contains your API key and token for the upload.",
             token_present="found" if bool(token) else "not found",
             api_key_present="found" if bool(api_key) else "not found",
