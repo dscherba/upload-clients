@@ -9,22 +9,23 @@ that were previously used to access the apis from [api.flurry.com](api.flurry.co
 ## How to send iOS symbols at build time
 
 1. Ensure that your project is configured to build dSYM bundles
-  ![dSYM setting](instructions/build-dsym-setting.png)
+   ![dSYM setting](instructions/build-dsym-setting.png)
 1. Copy the python script at `xcode/upload-symbols.py` to the root of your project directory
+   - Note: script requires Python 3, available at [python.org](https://www.python.org/downloads/mac-osx/) or through [Homebrew](https://brew.sh/).
+   - An unsupported Python 2.7 script is available on branch [python-2.7](https://github.com/flurry/upload-clients/tree/python-2.7)
 1. In XCode add a `Run Script` build phase
-  ![XCode build configuration](instructions/xcode-phases.png)
+   ![XCode build configuration](instructions/xcode-phases.png)
 1. Add a configuration file in the root of your project `flurry.config`. Contents:
-
-  ```
-  [flurry]
-  token=TOKEN
-  api-key=API_KEY
-  ```
-1. Configure the build phase. You can find your API key in the Flurry Developer portal or in you `AppDelegate`
-  ```
-  ./upload-symbols.py -c flurry.config
-  ```
-  ![Job configuration](instructions/job-config.png)
+   ```
+   [flurry]
+   token=TOKEN
+   api-key=API_KEY
+   ```
+1. Configure the build phase. You can find your API key in the Flurry Developer portal or in your `AppDelegate`
+   ```
+   ./upload-symbols.py -c flurry.config
+   ```
+   ![Job configuration](instructions/job-config.png)
 
 Now whenever you build your application you will upload symbols to Flurry's symbolication service. If you wish
 you can configure your symbols to be sent only when you build an archive of your project; this is achieved by checking
@@ -37,16 +38,16 @@ The recommended approach is to use the [Flurry Fastlane plugin](https://github.c
 If you choose not to use FastLane, this can be done manually through the following steps:
 
 1. Download symbols from iTunesConnect
-  - Go to iTunesConnect
-  ![Developer Account](instructions/bitcode-connect.png)
-  - Go to _My Apps_
-  - Select the app you want symbols for
-  - Inspect the current version
-  ![Version select](instructions/bitcode-version.png)
-  - Open the build
-  ![Build select](instructions/bitcode-build.png)
-  - Download the dsyms
-  ![dSYMs download](instructions/bitcode-dsyms.png)
+   - Go to iTunesConnect
+     ![Developer Account](instructions/bitcode-connect.png)
+   - Go to _My Apps_
+   - Select the app you want symbols for
+   - Inspect the current version
+     ![Version select](instructions/bitcode-version.png)
+   - Open the build
+     ![Build select](instructions/bitcode-build.png)
+   - Download the dsyms
+     ![dSYMs download](instructions/bitcode-dsyms.png)
 1. Run the script using the `-p <path to downloaded file>` argument. eg.
 ```
 ./upload-symbols.py -c flurry.config -p ~/Downloads/dSYMs.zip
@@ -83,12 +84,12 @@ generated `mapping.txt` file manually before any stack traces received from that
    }
    ```
 4. You may provide either `configPath` or `apiKey` *and* `token`
-  - `configPath "<the path to the flurry.config file described above>"`
-  - `apiKey "<the api key used to initialize the SDK>"`
-  - `token "<An environment variable to read the token from>"`
-  - `useEnvironmentVariable (true|false)` the default for `useEnvironmentVariable` is `true`. You can set it to `false`
-    if you want to inline your [Programmatic Token][programmatic-access], though this is not recommended.
-  - `ndk (true|false)` the default value is `false`. You can set it to `true` if you want to upload symbols for your native code as well.
+   - `configPath "<the path to the flurry.config file described above>"`
+   - `apiKey "<the api key used to initialize the SDK>"`
+   - `token "<An environment variable to read the token from>"`
+   - `useEnvironmentVariable (true|false)` the default for `useEnvironmentVariable` is `true`. You can set it to `false`
+     if you want to inline your [Programmatic Token][programmatic-access], though this is not recommended.
+   - `ndk (true|false)` the default value is `false`. You can set it to `true` if you want to upload symbols for your native code as well.
 
 [programmatic-access]: https://developer.yahoo.com/flurry/docs/api/code/apptoken/
 [plugin-install]: https://plugins.gradle.org/plugin/com.flurry.android.symbols
